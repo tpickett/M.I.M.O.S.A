@@ -15,9 +15,32 @@ def get_db():
             name TEXT NOT NULL,
             link TEXT NOT NULL,
             image TEXT,
-            position INTEGER,
-            quantity INTEGER,
+            quantity INTEGER
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS "organizers" (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            led_count INTEGER NOT NULL,
             ip TEXT
+        )
+    ''')
+
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS "positions" (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER,
+            organizer_id INTEGER,
+            position INTEGER
+        )
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS "settings" (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            theme TEXT
+            locate_timeout INTEGER
+            
         )
     ''')
     conn.commit()
@@ -35,7 +58,7 @@ def read_items():
 def write_item(item):
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO items (name, link, image, position, quantity, ip) VALUES (?, ?, ?, ?, ?, ?)', [item['name'], item['link'], item['image'], item['position'], item['quantity'], item['ip']])
+    cursor.execute('INSERT INTO items (name, link, image, quantity) VALUES (?, ?, ?, ?)', [item['name'], item['link'], item['image'], item['quantity']])
     lastId = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -49,12 +72,67 @@ def delete_item(id):
 
 def get_item(id):
     conn = get_db()
-    item = conn.execute('SELECT * FROM items WHERE id = ?', [id]).fetchone()
+    item = conn.execute('SELECT items.*, positions.position as position FROM items LEFT JOIN positions ON positions.item_id = items.id WHERE items.id = ?', [id]).fetchone()
     conn.close()
     return item
 
 def update_item(id, data):
     conn = get_db()
-    conn.execute('UPDATE items SET name = ?, link = ?, image = ?, position = ?, quantity = ?, ip = ? WHERE id = ?', [data['name'], data['link'], data['image'], data['position'], data['quantity'], data['ip'], id])
+    conn.execute('UPDATE items SET name = ?, link = ?, image = ?, quantity = ? WHERE id = ?', [data['name'], data['link'], data['image'], data['quantity'], id])
     conn.commit()
     conn.close()
+
+def read_organizers():
+    conn = get_db()
+    organizers = conn.execute('SELECT * FROM organizers').fetchall()
+    conn.close()
+    return [dict(organizers) for organizers in organizers]
+
+def write_organizer(organizer):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO organizers (name, led_count, ip) VALUES (?, ?, ?)', [organizer['name'], organizer['led_count'], organizer['ip']])
+    lastId = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return lastId
+
+def get_organizer(id):
+    conn = get_db()
+    organizer = conn.execute('SELECT * FROM organizers WHERE id = ?', [id]).fetchone()
+    conn.close()
+    return organizer
+
+def update_organizer(id, data):
+    conn = get_db()
+    conn.execute('UPDATE organizers SET name = ?, led_count = ?, ip = ?  WHERE id = ?', [data['name'], data['led_count'], data['ip'], id])
+    conn.commit()
+    conn.close()
+
+def delete_organizer(id):
+    conn = get_db()
+    conn.execute('DELETE FROM organizers WHERE id = ?', [id])
+    conn.commit()
+    conn.close()
+
+
+def get_organizer_parts(id):
+    conn = get_db()
+    parts = conn.execute('SELECT items.*, positions.position as position FROM items LEFT JOIN positions ON positions.item_id = items.id WHERE positions.organizer_id = ?', [id]).fetchall()
+    conn.close()
+    return [dict(part) for part in parts]
+
+def assign_part_to_organizer_slot(id, slot, part):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO positions (item_id, organizer_id, position) VALUES (?, ?, ?)', [int(part), int(id), int(slot)])
+    lastId = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return lastId
+
+def find_all_part_locations(id):
+    conn = get_db()
+    positions = conn.execute('SELECT positions.* FROM positions WHERE positions.item_id = ?;', [id]).fetchall()
+    conn.close()
+    return [dict(position) for position in positions]
